@@ -265,42 +265,64 @@ app.layout = dbc.Container([
 )
 def compute_pnl(beta, skew, term_slope, volga_scalar, scenario):
     """Compute P&L for current parameters and scenario."""
-    params = {
-        'spot_vol_beta': beta,
-        'skew_factor': skew,
-        'term_structure_slope': term_slope,
-        'volga_scalar': volga_scalar,
-        'reference_tenor_days': 30,
-    }
-    
-    engine = create_pnl_engine(VEGA_GRIDS, SPOT_SCENARIOS)
-    
-    # Calculate for selected scenario
-    result = engine.calculate_pnl(scenario, params)
-    
-    # Calculate for all scenarios (for comparison chart)
-    all_results = {}
-    for s in SPOT_SCENARIOS.keys():
-        r = engine.calculate_pnl(s, params)
-        all_results[s] = {
-            'vega_pnl': r.vega_pnl,
-            'vanna_pnl': r.vanna_pnl,
-            'volga_pnl': r.volga_pnl,
-            'total_pnl': r.total_pnl,
+    try:
+        params = {
+            'spot_vol_beta': beta,
+            'skew_factor': skew,
+            'term_structure_slope': term_slope,
+            'volga_scalar': volga_scalar,
+            'reference_tenor_days': 30,
         }
-    
-    return {
-        'scenario': scenario,
-        'vega_pnl': result.vega_pnl,
-        'vanna_pnl': result.vanna_pnl,
-        'volga_pnl': result.volga_pnl,
-        'total_pnl': result.total_pnl,
-        'pnl_by_expiry': result.pnl_by_expiry.to_dict(),
-        'pnl_by_moneyness': result.pnl_by_moneyness.to_dict(),
-        'total_pnl_grid': result.total_pnl_grid.to_dict(),
-        'iv_changes': result.iv_changes.to_dict(),
-        'all_scenarios': all_results,
-    }
+        
+        engine = create_pnl_engine(VEGA_GRIDS, SPOT_SCENARIOS)
+        
+        # Calculate for selected scenario
+        result = engine.calculate_pnl(scenario, params)
+        
+        # Calculate for all scenarios (for comparison chart)
+        all_results = {}
+        for s in SPOT_SCENARIOS.keys():
+            r = engine.calculate_pnl(s, params)
+            all_results[s] = {
+                'vega_pnl': float(r.vega_pnl),
+                'vanna_pnl': float(r.vanna_pnl),
+                'volga_pnl': float(r.volga_pnl),
+                'total_pnl': float(r.total_pnl),
+            }
+        
+        # Convert DataFrames to JSON-serializable format
+        # Convert datetime columns to strings
+        pnl_by_expiry = result.pnl_by_expiry.copy()
+        pnl_by_expiry.index = pnl_by_expiry.index.astype(str)
+        
+        pnl_by_moneyness = result.pnl_by_moneyness.copy()
+        pnl_by_moneyness.index = pnl_by_moneyness.index.astype(str)
+        
+        total_pnl_grid = result.total_pnl_grid.copy()
+        total_pnl_grid.index = total_pnl_grid.index.astype(str)
+        total_pnl_grid.columns = total_pnl_grid.columns.astype(str)
+        
+        iv_changes = result.iv_changes.copy()
+        iv_changes.index = iv_changes.index.astype(str)
+        iv_changes.columns = iv_changes.columns.astype(str)
+        
+        return {
+            'scenario': scenario,
+            'vega_pnl': float(result.vega_pnl),
+            'vanna_pnl': float(result.vanna_pnl),
+            'volga_pnl': float(result.volga_pnl),
+            'total_pnl': float(result.total_pnl),
+            'pnl_by_expiry': pnl_by_expiry.to_dict(),
+            'pnl_by_moneyness': pnl_by_moneyness.to_dict(),
+            'total_pnl_grid': total_pnl_grid.to_dict(),
+            'iv_changes': iv_changes.to_dict(),
+            'all_scenarios': all_results,
+        }
+    except Exception as e:
+        print(f"Error in compute_pnl: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 @app.callback(
