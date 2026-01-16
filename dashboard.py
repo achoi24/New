@@ -58,8 +58,8 @@ def create_parameter_card():
         dbc.CardHeader(html.H5("Model Parameters", className="mb-0")),
         dbc.CardBody([
             # Spot/Vol Beta
-            html.Label("Spot/Vol Beta (β)", className="mt-2"),
             html.Div([
+                html.Label("Spot/Vol Beta (β)", className="fw-bold"),
                 dcc.Slider(
                     id='beta-slider',
                     min=PARAM_RANGES['spot_vol_beta']['min'],
@@ -69,12 +69,12 @@ def create_parameter_card():
                     marks={i: str(i) for i in range(-5, 0)},
                     tooltip={"placement": "bottom", "always_visible": True}
                 ),
-            ], className="mb-3"),
-            html.Small("1% spot drop → β vol point rise", className="text-muted"),
+                html.P("1% spot drop → |β| vol point rise", className="text-muted small mt-1"),
+            ], className="mb-4"),
             
             # Skew Factor
-            html.Label("Skew Factor", className="mt-4"),
             html.Div([
+                html.Label("Skew Factor", className="fw-bold"),
                 dcc.Slider(
                     id='skew-slider',
                     min=PARAM_RANGES['skew_factor']['min'],
@@ -84,12 +84,12 @@ def create_parameter_card():
                     marks={i: str(i) for i in range(-2, 3)},
                     tooltip={"placement": "bottom", "always_visible": True}
                 ),
-            ], className="mb-3"),
-            html.Small("0=parallel, >0=steepens on selloffs", className="text-muted"),
+                html.P("0=parallel, >0=steepens on selloffs", className="text-muted small mt-1"),
+            ], className="mb-4"),
             
             # Term Structure Slope
-            html.Label("Term Structure Slope", className="mt-4"),
             html.Div([
+                html.Label("Term Structure Slope", className="fw-bold"),
                 dcc.Slider(
                     id='term-slider',
                     min=PARAM_RANGES['term_structure_slope']['min'],
@@ -99,12 +99,12 @@ def create_parameter_card():
                     marks={0.5: '0.5', 1: '1', 1.5: '1.5', 2: '2'},
                     tooltip={"placement": "bottom", "always_visible": True}
                 ),
-            ], className="mb-3"),
-            html.Small(">1=front-month more sensitive", className="text-muted"),
+                html.P(">1=front-month more sensitive", className="text-muted small mt-1"),
+            ], className="mb-4"),
             
             # Volga Scalar
-            html.Label("Volga Scalar", className="mt-4"),
             html.Div([
+                html.Label("Volga Scalar", className="fw-bold"),
                 dcc.Slider(
                     id='volga-slider',
                     min=PARAM_RANGES['volga_scalar']['min'],
@@ -114,8 +114,8 @@ def create_parameter_card():
                     marks={0: '0', 0.5: '0.5', 1: '1'},
                     tooltip={"placement": "bottom", "always_visible": True}
                 ),
-            ], className="mb-3"),
-            html.Small("Wing vega convexity multiplier", className="text-muted"),
+                html.P("Wing vega convexity multiplier", className="text-muted small mt-1"),
+            ], className="mb-2"),
         ])
     ], className="mb-4")
 
