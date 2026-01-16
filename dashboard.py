@@ -483,41 +483,53 @@ def update_heatmap(data):
     if not data:
         return go.Figure()
     
-    pnl_grid = pd.DataFrame(data['total_pnl_grid'])
+    try:
+        pnl_grid = pd.DataFrame(data['total_pnl_grid'])
+        
+        # Convert string index back to float for filtering
+        pnl_grid.index = pnl_grid.index.astype(float)
+        
+        # Filter to relevant moneyness range (0.7 to 1.3)
+        mask = (pnl_grid.index >= 0.7) & (pnl_grid.index <= 1.3)
+        pnl_grid = pnl_grid.loc[mask]
+        
+        # Format labels
+        expiry_labels = [str(x)[:10] for x in pnl_grid.columns]  # Just take first 10 chars of date string
+        moneyness_labels = [f"{m:.0%}" for m in pnl_grid.index]
+        
+        # Cap extreme values for better visualization
+        z_values = pnl_grid.values.astype(float)
+        valid_values = z_values[~np.isnan(z_values)]
+        if len(valid_values) > 0:
+            z_cap = np.percentile(np.abs(valid_values), 95)
+            if z_cap > 0:
+                z_values = np.clip(z_values, -z_cap, z_cap)
     
-    # Filter to relevant moneyness range (0.7 to 1.3)
-    mask = (pnl_grid.index >= 0.7) & (pnl_grid.index <= 1.3)
-    pnl_grid = pnl_grid.loc[mask]
-    
-    # Format labels
-    expiry_labels = [str(pd.to_datetime(x).strftime('%b %y')) for x in pnl_grid.columns]
-    moneyness_labels = [f"{m:.0%}" for m in pnl_grid.index]
-    
-    # Cap extreme values for better visualization
-    z_values = pnl_grid.values
-    z_cap = np.percentile(np.abs(z_values[~np.isnan(z_values)]), 95)
-    z_values = np.clip(z_values, -z_cap, z_cap)
-    
-    fig = go.Figure(data=go.Heatmap(
-        z=z_values,
-        x=expiry_labels,
-        y=moneyness_labels,
-        colorscale='RdYlGn',
-        zmid=0,
-        colorbar=dict(title='P&L ($)')
-    ))
-    
-    fig.update_layout(
-        template='plotly_dark',
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=60, r=20, t=20, b=40),
-        xaxis_title='Expiry',
-        yaxis_title='Moneyness (K/S)',
-        xaxis_tickangle=-45,
-    )
-    
-    return fig
+        fig = go.Figure(data=go.Heatmap(
+            z=z_values,
+            x=expiry_labels,
+            y=moneyness_labels,
+            colorscale='RdYlGn',
+            zmid=0,
+            colorbar=dict(title='P&L ($)')
+        ))
+        
+        fig.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=60, r=20, t=20, b=40),
+            xaxis_title='Expiry',
+            yaxis_title='Moneyness (K/S)',
+            xaxis_tickangle=-45,
+        )
+        
+        return fig
+    except Exception as e:
+        print(f"Error in update_heatmap: {e}")
+        import traceback
+        traceback.print_exc()
+        return go.Figure()
 
 
 @app.callback(
@@ -529,37 +541,46 @@ def update_moneyness_chart(data):
     if not data:
         return go.Figure()
     
-    pnl_by_moneyness = pd.DataFrame(data['pnl_by_moneyness'])
-    
-    # Filter to relevant range
-    mask = (pnl_by_moneyness.index >= 0.7) & (pnl_by_moneyness.index <= 1.3)
-    pnl_by_moneyness = pnl_by_moneyness.loc[mask]
-    
-    moneyness_labels = [f"{m:.0%}" for m in pnl_by_moneyness.index]
-    
-    # Color based on P&L sign
-    colors = [COLORS['profit'] if p >= 0 else COLORS['loss'] 
-              for p in pnl_by_moneyness['total_pnl'].values]
-    
-    fig = go.Figure(go.Bar(
-        x=pnl_by_moneyness['total_pnl'].values,
-        y=moneyness_labels,
-        orientation='h',
-        marker_color=colors,
-    ))
-    
-    fig.add_vline(x=0, line_dash="dash", line_color="gray", opacity=0.5)
-    
-    fig.update_layout(
-        template='plotly_dark',
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=60, r=20, t=20, b=40),
-        xaxis_title='Total P&L ($)',
-        yaxis_title='Moneyness',
-    )
-    
-    return fig
+    try:
+        pnl_by_moneyness = pd.DataFrame(data['pnl_by_moneyness'])
+        
+        # Convert string index back to float for filtering
+        pnl_by_moneyness.index = pnl_by_moneyness.index.astype(float)
+        
+        # Filter to relevant range
+        mask = (pnl_by_moneyness.index >= 0.7) & (pnl_by_moneyness.index <= 1.3)
+        pnl_by_moneyness = pnl_by_moneyness.loc[mask]
+        
+        moneyness_labels = [f"{m:.0%}" for m in pnl_by_moneyness.index]
+        
+        # Color based on P&L sign
+        colors = [COLORS['profit'] if p >= 0 else COLORS['loss'] 
+                  for p in pnl_by_moneyness['total_pnl'].values]
+        
+        fig = go.Figure(go.Bar(
+            x=pnl_by_moneyness['total_pnl'].values,
+            y=moneyness_labels,
+            orientation='h',
+            marker_color=colors,
+        ))
+        
+        fig.add_vline(x=0, line_dash="dash", line_color="gray", opacity=0.5)
+        
+        fig.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=60, r=20, t=20, b=40),
+            xaxis_title='Total P&L ($)',
+            yaxis_title='Moneyness',
+        )
+        
+        return fig
+    except Exception as e:
+        print(f"Error in update_moneyness_chart: {e}")
+        import traceback
+        traceback.print_exc()
+        return go.Figure()
 
 
 @app.callback(
@@ -571,49 +592,59 @@ def update_iv_chart(data):
     if not data:
         return go.Figure()
     
-    iv_changes = pd.DataFrame(data['iv_changes'])
-    
-    # Select a few key moneyness levels to display
-    key_levels = [0.9, 0.95, 1.0, 1.05, 1.1]
-    available_levels = [l for l in key_levels if any(abs(iv_changes.index - l) < 0.03)]
-    
-    if not available_levels:
-        available_levels = iv_changes.index[::max(1, len(iv_changes)//5)][:5].tolist()
-    
-    expiry_labels = [str(pd.to_datetime(x).strftime('%b %Y')) for x in iv_changes.columns]
-    
-    fig = go.Figure()
-    
-    colors = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#3498db']
-    
-    for i, level in enumerate(available_levels):
-        # Find closest available level
-        idx = (iv_changes.index - level).abs().argmin()
-        actual_level = iv_changes.index[idx]
+    try:
+        iv_changes = pd.DataFrame(data['iv_changes'])
         
-        fig.add_trace(go.Scatter(
-            x=expiry_labels,
-            y=iv_changes.loc[actual_level].values,
-            mode='lines+markers',
-            name=f'{actual_level:.0%} K/S',
-            line=dict(color=colors[i % len(colors)], width=2),
-            marker=dict(size=6)
-        ))
-    
-    fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
-    
-    fig.update_layout(
-        template='plotly_dark',
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=40, r=20, t=20, b=40),
-        xaxis_title='Expiry',
-        yaxis_title='IV Change (vol points)',
-        legend=dict(orientation='h', y=-0.3),
-        xaxis_tickangle=-45,
-    )
-    
-    return fig
+        # Convert string index back to float
+        iv_changes.index = iv_changes.index.astype(float)
+        
+        # Select a few key moneyness levels to display
+        key_levels = [0.9, 0.95, 1.0, 1.05, 1.1]
+        available_levels = [l for l in key_levels if any(abs(iv_changes.index - l) < 0.03)]
+        
+        if not available_levels:
+            available_levels = iv_changes.index[::max(1, len(iv_changes)//5)][:5].tolist()
+        
+        # Use column strings directly (already strings)
+        expiry_labels = [str(x)[:10] for x in iv_changes.columns]
+        
+        fig = go.Figure()
+        
+        colors = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#3498db']
+        
+        for i, level in enumerate(available_levels):
+            # Find closest available level
+            idx = (iv_changes.index - level).abs().argmin()
+            actual_level = iv_changes.index[idx]
+            
+            fig.add_trace(go.Scatter(
+                x=expiry_labels,
+                y=iv_changes.loc[actual_level].values.astype(float),
+                mode='lines+markers',
+                name=f'{actual_level:.0%} K/S',
+                line=dict(color=colors[i % len(colors)], width=2),
+                marker=dict(size=6)
+            ))
+        
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+        
+        fig.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=40, r=20, t=20, b=40),
+            xaxis_title='Expiry',
+            yaxis_title='IV Change (vol points)',
+            legend=dict(orientation='h', y=-0.3),
+            xaxis_tickangle=-45,
+        )
+        
+        return fig
+    except Exception as e:
+        print(f"Error in update_iv_chart: {e}")
+        import traceback
+        traceback.print_exc()
+        return go.Figure()
 
 
 # ============================================================================
