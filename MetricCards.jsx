@@ -30,6 +30,14 @@ export default function MetricCards({ pnlResult, spotMove, atmTotalVega, shifted
         color="var(--orange)"
         sub={volMode === 'beta' ? 'Calibrated Model' : 'Manual Input'}
       />
+      {pnlResult?.volgaContribution != null && Math.abs(pnlResult.volgaContribution) > 0.01 && (
+        <Card
+          label="Volga P&L"
+          value={'$' + fmt(pnlResult.volgaContribution)}
+          color={pnlColor(pnlResult.volgaContribution)}
+          sub="½·Volga·(Δσ)² contribution"
+        />
+      )}
     </div>
   );
 }

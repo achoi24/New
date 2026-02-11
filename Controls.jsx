@@ -132,6 +132,22 @@ export function VolControls({ volMode, setVolMode, betaParams, setBetaParams, ma
             format={(v) => v.toFixed(1)}
             tooltip="Vol-of-vol: β increases for larger moves"
           />
+          <SliderControl
+            label="Volga Scale"
+            value={betaParams.volgaScale}
+            onChange={(v) => setBetaParams((p) => ({ ...p, volgaScale: v }))}
+            min={0} max={1.0} step={0.01}
+            format={(v) => v.toFixed(2)}
+            tooltip="Second-order vol P&L: ½·Volga·(Δσ)²"
+          />
+          <SliderControl
+            label="Term Floor"
+            value={betaParams.termFloor}
+            onChange={(v) => setBetaParams((p) => ({ ...p, termFloor: v }))}
+            min={0} max={0.5} step={0.01}
+            format={(v) => (v * 100).toFixed(0) + '%'}
+            tooltip="Minimum term factor for long-dated expiries"
+          />
           <button
             onClick={() => setBetaParams(DEFAULT_BETA_PARAMS)}
             style={{
@@ -173,6 +189,24 @@ export function VolControls({ volMode, setVolMode, betaParams, setBetaParams, ma
             format={(v) => v.toFixed(2)}
             tooltip="Dampens vol change for longer tenors"
           />
+          <SliderControl
+            label="Volga Scale"
+            value={manualParams.volgaScale}
+            onChange={(v) => setManualParams((p) => ({ ...p, volgaScale: v }))}
+            min={0} max={1.0} step={0.01}
+            format={(v) => v.toFixed(2)}
+            tooltip="Second-order vol P&L: ½·Volga·(Δσ)²"
+          />
+          <button
+            onClick={() => setManualParams(DEFAULT_MANUAL_PARAMS)}
+            style={{
+              width: '100%', padding: '6px 0', fontSize: 11,
+              background: 'transparent', color: 'var(--text-dim)',
+              border: '1px solid var(--border)', borderRadius: 4, marginTop: 4,
+            }}
+          >
+            Reset to Defaults
+          </button>
         </>
       )}
     </div>

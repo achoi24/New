@@ -144,9 +144,9 @@ export function VolChangePreviewChart({ expiries, spotMove, volParams, volMode }
       const d = new Date(exp);
       return {
         expiry: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-        atm: computeVolChange(1.0, exp, spotMove, volParams, volMode),
-        '90%': computeVolChange(0.9, exp, spotMove, volParams, volMode),
-        '110%': computeVolChange(1.1, exp, spotMove, volParams, volMode),
+        atm: computeVolChange(1.0, exp, spotMove, volParams, volMode).dSigma,
+        '90%': computeVolChange(0.9, exp, spotMove, volParams, volMode).dSigma,
+        '110%': computeVolChange(1.1, exp, spotMove, volParams, volMode).dSigma,
       };
     });
   }, [expiries, spotMove, volParams, volMode]);

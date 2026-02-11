@@ -7,6 +7,7 @@ import {
   ScenarioCurveChart, VolChangePreviewChart,
 } from './components/Charts.jsx';
 import HeatmapTable from './components/HeatmapTable.jsx';
+import StressTestPanel from './components/StressTest.jsx';
 import { interpolateVegaGrid } from './engine/interpolation.js';
 import { computePnL } from './engine/pnl.js';
 import { DEFAULT_BETA_PARAMS, DEFAULT_MANUAL_PARAMS, EXPIRY_BUCKET_ORDER } from './engine/volModels.js';
@@ -14,6 +15,7 @@ import { fmt, pnlColor, formatExpiryFull } from './utils/format.js';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
+  { key: 'stress', label: 'Stress Test' },
   { key: 'expiry', label: 'By Expiry' },
   { key: 'moneyness', label: 'By Strike' },
   { key: 'scenario', label: 'Scenario Curve' },
@@ -209,6 +211,10 @@ export default function App() {
                     />
                   </Panel>
                 </div>
+              )}
+
+              {activeTab === 'stress' && (
+                <StressTestPanel surfaces={surfaces} volParams={volParams} />
               )}
 
               {activeTab === 'expiry' && pnlResult && (

@@ -47,8 +47,10 @@ class BetaParams:
     """Parameters for the calibrated spot-vol beta model."""
     spot_vol_beta: float = -0.40   # ATM vol change per 1% spot move
     skew_beta: float = 0.15        # additional vol for OTM strikes
-    term_decay: float = 0.80       # exponential decay across term structure
+    term_decay: float = 0.50       # exponential decay across term structure
     convexity: float = 2.0         # vol-of-vol effect on large moves
+    volga_scale: float = 0.15      # second-order vol P&L scaling
+    term_floor: float = 0.08       # minimum term factor for long-dated
 
 
 @dataclass
@@ -57,6 +59,7 @@ class ManualParams:
     atm_vol_change: float = 0.0    # parallel shift in vol points
     skew_change: float = 0.1       # vol per unit moneyness deviation
     term_multiplier: float = 0.5   # dampens vol change for longer tenors
+    volga_scale: float = 0.15      # second-order vol P&L scaling
 
 
 @dataclass
@@ -267,51 +270,58 @@ def beta_vol_change(
     years_to_expiry: float,
     spot_move: float,
     params: BetaParams,
-) -> float:
+) -> tuple:
     """
     Compute vol change at a single (moneyness, expiry) node using the beta model.
 
-    Δσ = [β·ΔS + γ·ΔS²] × exp(-τ·T) × [1 + κ·(K-1)]
+    Returns (dSigma, volgaPnL) where:
+      dSigma: first-order vol change
+      volgaPnL: ½·VolgaFactor·(Δσ)² per unit vega
 
-    Parameters
-    ----------
-    moneyness : strike / spot (1.0 = ATM)
-    years_to_expiry : time to expiry in years
-    spot_move : fractional spot move (e.g., -0.05 for -5%)
-    params : BetaParams
-
-    Returns
-    -------
-    Vol change in vol points
+    Enhanced with: convexity fix, skew fix, term floor, Volga estimation.
     """
-    dS = spot_move * 100  # convert to percentage for intuitive beta scaling
+    dS = spot_move * 100
 
-    # Core ATM vol change with convexity
-    atm_change = params.spot_vol_beta * dS + params.convexity * dS * dS * np.sign(params.spot_vol_beta) * 0.01
+    # Core ATM vol change + convexity (always amplifies)
+    atm_change = params.spot_vol_beta * dS + params.convexity * dS * dS * 0.01
 
-    # Skew effect: OTM puts gain more vol on down moves
+    # Skew: OTM puts get MORE vol on down moves (fixed sign)
     m_diff = moneyness - 1.0
-    skew_effect = 1.0 + params.skew_beta * m_diff * np.sign(-dS)
+    skew_effect = np.clip(1.0 - params.skew_beta * m_diff * np.sign(-dS), 0.5, 2.0)
 
-    # Term structure: front-end vol moves more than back-end
-    term_factor = np.exp(-params.term_decay * years_to_expiry)
+    # Term structure with floor
+    term_factor = max(params.term_floor, np.exp(-params.term_decay * years_to_expiry))
 
-    return atm_change * skew_effect * term_factor
+    dSigma = atm_change * skew_effect * term_factor
+
+    # Volga: ½ · VolgaFactor · (Δσ)²
+    log_m = np.log(max(moneyness, 0.01))
+    sigma_approx = 0.20
+    volga_factor = min((log_m ** 2) / (sigma_approx ** 2 * max(years_to_expiry, 0.01)), 10.0)
+    volga_pnl = 0.5 * volga_factor * dSigma * dSigma * params.volga_scale
+
+    return dSigma, volga_pnl
 
 
 def manual_vol_change(
     moneyness: float,
     years_to_expiry: float,
     params: ManualParams,
-) -> float:
+) -> tuple:
     """
     Compute vol change using manual scenario inputs.
-
-    Δσ = (atm_change + skew·(K-1)) × 1/(1 + term_mult·√T)
+    Returns (dSigma, volgaPnL).
     """
     m_diff = moneyness - 1.0
     term_factor = 1.0 / (1.0 + params.term_multiplier * np.sqrt(years_to_expiry))
-    return (params.atm_vol_change + params.skew_change * m_diff) * term_factor
+    dSigma = (params.atm_vol_change + params.skew_change * m_diff) * term_factor
+
+    log_m = np.log(max(moneyness, 0.01))
+    sigma_approx = 0.20
+    volga_factor = min((log_m ** 2) / (sigma_approx ** 2 * max(years_to_expiry, 0.01)), 10.0)
+    volga_pnl = 0.5 * volga_factor * dSigma * dSigma * params.volga_scale
+
+    return dSigma, volga_pnl
 
 
 def compute_vol_change_grid(
@@ -320,11 +330,11 @@ def compute_vol_change_grid(
     vol_mode: str = "beta",
     beta_params: BetaParams = None,
     manual_params: ManualParams = None,
-) -> np.ndarray:
+) -> tuple:
     """
     Compute the full vol change matrix for a vega grid.
 
-    Returns (N, M) array of vol changes in vol points.
+    Returns (vol_changes, volga_pnl) — both (N, M) arrays.
     """
     if beta_params is None:
         beta_params = BetaParams()
@@ -333,19 +343,22 @@ def compute_vol_change_grid(
 
     n, m = grid.values.shape
     vol_changes = np.zeros((n, m))
+    volga_pnl = np.zeros((n, m))
 
     for i in range(n):
         for j in range(m):
             if vol_mode == "beta":
-                vol_changes[i, j] = beta_vol_change(
+                ds, vp = beta_vol_change(
                     grid.moneyness[i], grid.expiry_years[j], spot_move, beta_params
                 )
             else:
-                vol_changes[i, j] = manual_vol_change(
+                ds, vp = manual_vol_change(
                     grid.moneyness[i], grid.expiry_years[j], manual_params
                 )
+            vol_changes[i, j] = ds
+            volga_pnl[i, j] = vp
 
-    return vol_changes
+    return vol_changes, volga_pnl
 
 
 # ─── P&L Computation ──────────────────────────────────────────────────────────
@@ -409,13 +422,13 @@ def compute_pnl(
     # Step 1: Interpolate vega grid
     vega_grid = interpolate_vega_grid(surfaces, spot_move, method=interp_method)
 
-    # Step 2: Compute vol changes
-    vol_changes = compute_vol_change_grid(
+    # Step 2: Compute vol changes + Volga
+    vol_changes, volga_grid = compute_vol_change_grid(
         vega_grid, spot_move, vol_mode, beta_params, manual_params
     )
 
-    # Step 3: P&L = Vega × ΔVol
-    pnl_grid = vega_grid.values * vol_changes
+    # Step 3: P&L = Vega × ΔVol + Vega × VolgaPnL
+    pnl_grid = vega_grid.values * vol_changes + vega_grid.values * volga_grid
 
     # Step 4: Aggregations
     total_pnl = float(pnl_grid.sum())
